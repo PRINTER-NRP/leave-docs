@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ดาวน์โหลดใบลาเรียน</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f6f7f9;
+    --card: #ffffff;
+    --text: #1b1f24;
+    --muted: #667080;
+    --line: #e3e6eb;
+    --accent: #e8590c;
+    --accent-soft: #fff1e8;
+    --accent-text: #ffffff;
+    --shadow: 0 1px 2px rgba(16, 24, 40, .06), 0 2px 8px rgba(16, 24, 40, .04);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #121417;
+      --card: #1b1e23;
+      --text: #eceef1;
+      --muted: #9aa3ae;
+      --line: #2c3138;
+      --accent: #ff8a3d;
+      --accent-soft: #2d1f16;
+      --accent-text: #1b1208;
+      --shadow: none;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #121417; --card: #1b1e23; --text: #eceef1; --muted: #9aa3ae;
+    --line: #2c3138; --accent: #ff8a3d; --accent-soft: #2d1f16; --accent-text: #1b1208; --shadow: none;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Noto Sans Thai", system-ui, sans-serif;
+    line-height: 1.55;
+  }
+  main { max-width: 760px; margin: 0 auto; padding: 32px 16px 64px; }
+  header h1 { font-size: 1.6rem; margin: 0 0 4px; }
+  header p { margin: 0; color: var(--muted); }
+
+  .step { margin-top: 28px; }
+  .step-title { display: flex; align-items: center; gap: 10px; font-weight: 600; margin-bottom: 12px; }
+  .badge {
+    width: 26px; height: 26px; border-radius: 50%;
+    display: grid; place-items: center;
+    background: var(--accent); color: var(--accent-text); font-size: .85rem;
+  }
+
+  .days { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; }
+  .day {
+    text-align: left; cursor: pointer;
+    background: var(--card); color: var(--text);
+    border: 1.5px solid var(--line); border-radius: 12px;
+    padding: 12px 14px; font: inherit; box-shadow: var(--shadow);
+    transition: border-color .15s, background .15s;
+  }
+  .day:hover { border-color: var(--accent); }
+  .day[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
+  .day .weekday { font-weight: 600; font-size: 1.05rem; }
+  .day .date { color: var(--muted); font-size: .9rem; }
+  .day .count { color: var(--muted); font-size: .8rem; margin-top: 4px; }
+
+  .search {
+    width: 100%; padding: 12px 14px; font: inherit; font-size: 1rem;
+    border: 1.5px solid var(--line); border-radius: 12px;
+    background: var(--card); color: var(--text);
+  }
+  .search:focus { outline: none; border-color: var(--accent); }
+  .search:disabled { opacity: .5; }
+
+  .list { margin-top: 12px; display: flex; flex-direction: column; gap: 8px; }
+  .item {
+    display: flex; align-items: center; gap: 12px;
+    background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+    padding: 12px 14px; box-shadow: var(--shadow);
+  }
+  .item .info { flex: 1; min-width: 0; }
+  .item .course { font-weight: 600; font-size: 1.1rem; }
+  .item .meta { color: var(--muted); font-size: .85rem; overflow-wrap: anywhere; }
+  .btn {
+    flex-shrink: 0; text-decoration: none; font-weight: 600;
+    background: var(--accent); color: var(--accent-text);
+    padding: 8px 14px; border-radius: 10px; white-space: nowrap;
+  }
+  .btn:hover { filter: brightness(1.05); }
+  .empty { color: var(--muted); padding: 16px 4px; }
+  mark { background: var(--accent-soft); color: inherit; border-radius: 3px; padding: 0 2px; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1 id="title">ดาวน์โหลดใบลาเรียน</h1>
+    <p>เลือกวันที่ แล้วค้นหารหัสวิชาของคุณเพื่อดาวน์โหลดเอกสาร PDF</p>
+  </header>
+
+  <section class="step">
+    <div class="step-title"><span class="badge">1</span> เลือกวันที่</div>
+    <div class="days" id="days"><div class="empty">กำลังโหลด…</div></div>
+  </section>
+
+  <section class="step">
+    <div class="step-title"><span class="badge">2</span> ค้นหารายวิชา</div>
+    <input class="search" id="search" type="search" placeholder="พิมพ์รหัสวิชา เช่น 1101042 หรือ IST20" disabled autocomplete="off">
+    <div class="list" id="list"></div>
+  </section>
+</main>
+
+<script>
+const WEEKDAYS = ["จันทร์", "อังคาร", "พุธ", "พฤหัสบดี", "ศุกร์", "เสาร์", "อาทิตย์"];
+const daysEl = document.getElementById("days");
+const listEl = document.getElementById("list");
+const searchEl = document.getElementById("search");
+let data = { days: [] };
+let current = null;
+
+const norm = s => s.normalize("NFC").toLowerCase().replace(/\s+/g, "");
+const escapeHtml = s => s.replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const fileUrl = path => path.split("/").map(encodeURIComponent).join("/");
+const fmtSize = b => b >= 1048576 ? (b / 1048576).toFixed(1) + " MB" : Math.round(b / 1024) + " KB";
+
+function splitLabel(label) {
+  const wd = WEEKDAYS.find(w => label.startsWith(w));
+  return wd ? { weekday: wd, date: label.slice(wd.length).trim() } : { weekday: label, date: "" };
+}
+
+function highlight(text, query) {
+  if (!query) return escapeHtml(text);
+  // จับคู่โดยไม่สนช่องว่าง เช่น "ist201507" ตรงกับ "IST20 1507"
+  const chars = [...text];
+  let i = 0, start = -1, end = -1;
+  const q = norm(query);
+  for (let s = 0; s < chars.length && end < 0; s++) {
+    if (/\s/.test(chars[s])) continue;
+    let k = 0, j = s;
+    while (j < chars.length && k < q.length) {
+      if (/\s/.test(chars[j])) { j++; continue; }
+      if (chars[j].toLowerCase() !== q[k]) break;
+      j++; k++;
+    }
+    if (k === q.length) { start = s; end = j; }
+  }
+  if (start < 0) return escapeHtml(text);
+  return escapeHtml(chars.slice(0, start).join("")) + "<mark>" +
+    escapeHtml(chars.slice(start, end).join("")) + "</mark>" + escapeHtml(chars.slice(end).join(""));
+}
+
+function renderDays() {
+  if (!data.days.length) {
+    daysEl.innerHTML = '<div class="empty">ยังไม่มีเอกสาร</div>';
+    return;
+  }
+  daysEl.innerHTML = "";
+  data.days.forEach((day, idx) => {
+    const { weekday, date } = splitLabel(day.label);
+    const btn = document.createElement("button");
+    btn.className = "day";
+    btn.setAttribute("aria-pressed", String(current === idx));
+    btn.innerHTML = `<div class="weekday">${escapeHtml(weekday)}</div>
+      <div class="date">${escapeHtml(date)}</div>
+      <div class="count">${day.files.length} วิชา</div>`;
+    btn.onclick = () => selectDay(idx);
+    daysEl.appendChild(btn);
+  });
+}
+
+function selectDay(idx) {
+  current = idx;
+  searchEl.disabled = false;
+  searchEl.focus();
+  renderDays();
+  renderList();
+  history.replaceState(null, "", "#" + (idx + 1));
+}
+
+function renderList() {
+  if (current === null) {
+    listEl.innerHTML = '<div class="empty">กรุณาเลือกวันที่ก่อน</div>';
+    return;
+  }
+  const day = data.days[current];
+  const q = searchEl.value.trim();
+  const matches = day.files.filter(f => norm(f.course).includes(norm(q)));
+  if (!matches.length) {
+    listEl.innerHTML = `<div class="empty">ไม่พบวิชา “${escapeHtml(q)}” ในวัน${escapeHtml(day.label)}</div>`;
+    return;
+  }
+  listEl.innerHTML = matches.map(f => `
+    <div class="item">
+      <div class="info">
+        <div class="course">${highlight(f.course, q)}</div>
+        <div class="meta">${escapeHtml(f.name)} · ${fmtSize(f.size)}</div>
+      </div>
+      <a class="btn" href="${fileUrl(f.file)}" download="${escapeHtml(f.name)}" target="_blank" rel="noopener">ดาวน์โหลด</a>
+    </div>`).join("");
+}
+
+searchEl.addEventListener("input", renderList);
+
+fetch("files.json", { cache: "no-store" })
+  .then(r => r.json())
+  .then(json => {
+    data = json;
+    if (json.title) document.getElementById("title").textContent = "ดาวน์โหลดใบ" + json.title;
+    renderDays();
+    const fromHash = parseInt(location.hash.slice(1), 10) - 1;
+    if (fromHash >= 0 && fromHash < data.days.length) selectDay(fromHash);
+    else renderList();
+  })
+  .catch(() => {
+    daysEl.innerHTML = '<div class="empty">โหลดรายการเอกสารไม่สำเร็จ (ไม่พบ files.json)</div>';
+  });
+</script>
+</body>
+</html>
