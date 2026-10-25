@@ -70,15 +70,7 @@
   .day .date { color: var(--muted); font-size: .9rem; }
   .day .count { color: var(--muted); font-size: .8rem; margin-top: 4px; }
 
-  .search {
-    width: 100%; padding: 12px 14px; font: inherit; font-size: 1rem;
-    border: 1.5px solid var(--line); border-radius: 12px;
-    background: var(--card); color: var(--text);
-  }
-  .search:focus { outline: none; border-color: var(--accent); }
-  .search:disabled { opacity: .5; }
-
-  .list { margin-top: 12px; display: flex; flex-direction: column; gap: 8px; }
+  .list { display: flex; flex-direction: column; gap: 8px; }
   .item {
     display: flex; align-items: center; gap: 12px;
     background: var(--card); border: 1px solid var(--line); border-radius: 12px;
@@ -94,14 +86,13 @@
   }
   .btn:hover { filter: brightness(1.05); }
   .empty { color: var(--muted); padding: 16px 4px; }
-  mark { background: var(--accent-soft); color: inherit; border-radius: 3px; padding: 0 2px; }
 </style>
 </head>
 <body>
 <main>
   <header>
     <h1 id="title">ดาวน์โหลดใบลาเรียน</h1>
-    <p>เลือกวันที่ แล้วค้นหารหัสวิชาของคุณเพื่อดาวน์โหลดเอกสาร PDF</p>
+    <p>เลือกวันที่ แล้วกดดาวน์โหลดเอกสาร PDF ของรายวิชาที่ต้องการ</p>
   </header>
 
   <section class="step">
@@ -110,8 +101,7 @@
   </section>
 
   <section class="step">
-    <div class="step-title"><span class="badge">2</span> เลือกรายวิชา</div>
-    <!-- <input class="search" id="search" type="search" placeholder="พิมพ์รหัสวิชา เช่น 1101042 หรือ IST20" disabled autocomplete="off"> -->
+    <div class="step-title"><span class="badge">2</span> เลือกรายวิชาแล้วกดดาวน์โหลด</div>
     <div class="list" id="list"></div>
   </section>
 </main>
@@ -120,11 +110,9 @@
 const WEEKDAYS = ["จันทร์", "อังคาร", "พุธ", "พฤหัสบดี", "ศุกร์", "เสาร์", "อาทิตย์"];
 const daysEl = document.getElementById("days");
 const listEl = document.getElementById("list");
-const searchEl = document.getElementById("search");
 let data = { days: [] };
 let current = null;
 
-const norm = s => s.normalize("NFC").toLowerCase().replace(/\s+/g, "");
 const escapeHtml = s => s.replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const fileUrl = path => path.split("/").map(encodeURIComponent).join("/");
 const fmtSize = b => b >= 1048576 ? (b / 1048576).toFixed(1) + " MB" : Math.round(b / 1024) + " KB";
@@ -132,27 +120,6 @@ const fmtSize = b => b >= 1048576 ? (b / 1048576).toFixed(1) + " MB" : Math.roun
 function splitLabel(label) {
   const wd = WEEKDAYS.find(w => label.startsWith(w));
   return wd ? { weekday: wd, date: label.slice(wd.length).trim() } : { weekday: label, date: "" };
-}
-
-function highlight(text, query) {
-  if (!query) return escapeHtml(text);
-  // จับคู่โดยไม่สนช่องว่าง เช่น "ist201507" ตรงกับ "IST20 1507"
-  const chars = [...text];
-  let i = 0, start = -1, end = -1;
-  const q = norm(query);
-  for (let s = 0; s < chars.length && end < 0; s++) {
-    if (/\s/.test(chars[s])) continue;
-    let k = 0, j = s;
-    while (j < chars.length && k < q.length) {
-      if (/\s/.test(chars[j])) { j++; continue; }
-      if (chars[j].toLowerCase() !== q[k]) break;
-      j++; k++;
-    }
-    if (k === q.length) { start = s; end = j; }
-  }
-  if (start < 0) return escapeHtml(text);
-  return escapeHtml(chars.slice(0, start).join("")) + "<mark>" +
-    escapeHtml(chars.slice(start, end).join("")) + "</mark>" + escapeHtml(chars.slice(end).join(""));
 }
 
 function renderDays() {
@@ -176,8 +143,6 @@ function renderDays() {
 
 function selectDay(idx) {
   current = idx;
-  searchEl.disabled = false;
-  searchEl.focus();
   renderDays();
   renderList();
   history.replaceState(null, "", "#" + (idx + 1));
@@ -188,24 +153,15 @@ function renderList() {
     listEl.innerHTML = '<div class="empty">กรุณาเลือกวันที่ก่อน</div>';
     return;
   }
-  const day = data.days[current];
-  const q = searchEl.value.trim();
-  const matches = day.files.filter(f => norm(f.course).includes(norm(q)));
-  if (!matches.length) {
-    listEl.innerHTML = `<div class="empty">ไม่พบวิชา “${escapeHtml(q)}” ในวัน${escapeHtml(day.label)}</div>`;
-    return;
-  }
-  listEl.innerHTML = matches.map(f => `
+  listEl.innerHTML = data.days[current].files.map(f => `
     <div class="item">
       <div class="info">
-        <div class="course">${highlight(f.course, q)}</div>
+        <div class="course">${escapeHtml(f.course)}</div>
         <div class="meta">${escapeHtml(f.name)} · ${fmtSize(f.size)}</div>
       </div>
       <a class="btn" href="${fileUrl(f.file)}" download="${escapeHtml(f.name)}" target="_blank" rel="noopener">ดาวน์โหลด</a>
     </div>`).join("");
 }
-
-searchEl.addEventListener("input", renderList);
 
 fetch("files.json", { cache: "no-store" })
   .then(r => r.json())
